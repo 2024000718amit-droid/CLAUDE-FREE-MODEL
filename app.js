@@ -280,14 +280,28 @@ async function sendMessage() {
     
     for (const file of documentFiles) {
       try {
-        // Read file content from Puter
-        const content = await puter.fs.read(file.url);
+        let content = '';
+        
+        // Handle DOCX files specially with mammoth
+        if (file.name.toLowerCase().endsWith('.docx') && typeof mammoth !== 'undefined') {
+          // Read as ArrayBuffer for DOCX
+          const arrayBuffer = await puter.fs.read(file.url, { encoding: 'arraybuffer' });
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          content = result.value;
+          if (result.messages.length > 0) {
+            console.log('Mammoth messages:', result.messages);
+          }
+        } else {
+          // Read as text for other documents (PDF, TXT)
+          content = await puter.fs.read(file.url);
+        }
+        
         fileContext += `--- ${file.name} ---\n`;
         fileContext += `${content}\n\n`;
       } catch (err) {
         console.error(`Failed to read ${file.name}:`, err);
         fileContext += `--- ${file.name} ---\n`;
-        fileContext += `[Error: Could not read file content]\n\n`;
+        fileContext += `[Error: Could not read file content - ${err.message}]\n\n`;
       }
     }
   }
