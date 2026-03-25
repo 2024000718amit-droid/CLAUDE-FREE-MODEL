@@ -34,10 +34,13 @@ function showToast(message, icon = '✓', duration = 3000) {
 async function uploadFile() {
   try {
     // Use string format for accept (more compatible with Puter)
-    const files = await puter.ui.showOpenFilePicker({
+    const result = await puter.ui.showOpenFilePicker({
       multiple: true,
       accept: 'image/*,.pdf,.docx,.doc,.txt'
     });
+
+    // Ensure we have an array (Puter might return single file or array)
+    const files = Array.isArray(result) ? result : [result];
 
     for (const file of files) {
       try {
