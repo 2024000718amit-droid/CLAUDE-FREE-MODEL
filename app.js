@@ -33,10 +33,10 @@ function showToast(message, icon = '✓', duration = 3000) {
 // File Upload - Simple and reliable
 async function uploadFile() {
   try {
-    // Simpler and more reliable way
+    // Use string format for accept (more compatible with Puter)
     const files = await puter.ui.showOpenFilePicker({
-      multiple: true,                    // allow multiple files
-      accept: ['image/*', '.pdf', '.docx', '.doc', '.txt']
+      multiple: true,
+      accept: 'image/*,.pdf,.docx,.doc,.txt'
     });
 
     for (const file of files) {
@@ -51,17 +51,20 @@ async function uploadFile() {
         console.log(`Attached: ${file.name}`);
       } catch (uploadErr) {
         console.error("Upload failed for", file.name, uploadErr);
+        showToast(`Failed to upload ${file.name}`, '✗');
       }
     }
 
     if (attachedFiles.length > 0) {
       showToast(`✅ Successfully attached ${attachedFiles.length} file(s)`, '✓');
+      renderAttachedFiles();
     }
   } catch (e) {
     if (e.message && e.message.includes("cancel")) {
       console.log("File picker cancelled by user");
     } else {
-      showToast("File upload failed. Try signing into Puter.com first or use the public version at https://claude.puter.com", '✗', 5000);
+      console.error("File picker error:", e);
+      showToast("File picker error. You may need to sign into Puter.com first.", '✗', 5000);
     }
   }
 }
