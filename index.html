@@ -3,67 +3,123 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Claude • Unlimited</title>
+  <title>Unlimited Claude</title>
   <script src="https://js.puter.com/v2/"></script>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
 </head>
-<body class="bg-gray-950 text-gray-100 flex h-screen overflow-hidden font-sans">
+<body class="bg-[#0d0d0d] text-[#e0e0e0] flex h-screen overflow-hidden font-sans antialiased">
+  
   <!-- Sidebar -->
-  <div id="sidebar" class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col">
-    <div class="p-4 border-b border-gray-800">
-      <button onclick="newChat()" class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-xl py-3 px-4 flex items-center justify-center gap-2 font-medium transition-colors">
-        <span class="text-xl">+</span> New Chat
+  <aside id="sidebar" class="w-[300px] bg-[#171717] border-r border-[#262626] flex flex-col flex-shrink-0 transition-transform duration-300 ease-in-out z-20">
+    <!-- New Chat Button -->
+    <div class="p-4">
+      <button onclick="newChat()" class="w-full bg-[#7c3aed] hover:bg-[#8b5cf6] text-white rounded-xl py-3 px-4 flex items-center justify-center gap-2 font-medium transition-all duration-200 shadow-lg shadow-violet-900/20 hover:shadow-violet-900/40">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+        New Chat
       </button>
     </div>
-    <div id="chat-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
-    <div class="p-4 border-t border-gray-800 text-xs text-gray-500 flex items-center justify-between">
-      <div>Powered by Puter.js • Free & Unlimited</div>
-      <select id="model-select" onchange="switchModel()" class="bg-gray-800 text-white text-sm rounded-lg px-3 py-1 border border-gray-700">
-        <option value="claude-opus-4-6">Claude Opus 4.6</option>
-        <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
-        <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
-      </select>
+    
+    <!-- Chat List -->
+    <div id="chat-list" class="flex-1 overflow-y-auto px-3 py-2 space-y-1"></div>
+    
+    <!-- Footer Info -->
+    <div class="p-4 border-t border-[#262626] text-xs">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-[#a3a3a3]">Model</span>
+        <select id="model-select" onchange="switchModel()" class="bg-[#262626] text-white text-xs rounded-lg px-3 py-1.5 border border-[#404040] focus:outline-none focus:border-violet-500 transition-colors cursor-pointer">
+          <option value="claude-opus-4-6">Claude Opus 4.6</option>
+          <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
+          <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+        </select>
+      </div>
+      <div class="text-[#737373] text-center">
+        Powered by Puter.js • Free & Unlimited<br>
+        Vision + Document Analysis
+      </div>
     </div>
-  </div>
+  </aside>
 
-  <!-- Main Chat -->
-  <div class="flex-1 flex flex-col">
-    <div id="chat-header" class="h-14 border-b border-gray-800 flex items-center px-6 justify-between bg-gray-900">
+  <!-- Mobile Sidebar Toggle -->
+  <button id="sidebar-toggle" onclick="toggleSidebar()" class="lg:hidden fixed top-4 left-4 z-30 bg-[#262626] text-white p-2 rounded-xl border border-[#404040] shadow-lg">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+  </button>
+
+  <!-- Main Chat Area -->
+  <main class="flex-1 flex flex-col min-w-0 relative">
+    <!-- Header -->
+    <header class="h-14 border-b border-[#262626] flex items-center px-6 justify-between bg-[#171717]/80 backdrop-blur-md sticky top-0 z-10">
       <div class="flex items-center gap-3">
-        <div class="w-8 h-8 bg-violet-600 rounded-2xl flex items-center justify-center text-white font-bold">C</div>
-        <h1 id="current-chat-title" class="font-semibold text-lg">New Conversation</h1>
-      </div>
-      <button onclick="clearAllChats()" class="text-gray-400 hover:text-white text-sm flex items-center gap-1">
-        <span>Clear All</span>
-      </button>
-    </div>
-
-    <div id="messages" class="flex-1 overflow-y-auto p-6 space-y-8 bg-gray-950"></div>
-
-    <!-- Input -->
-    <div class="p-4 border-t border-gray-800 bg-gray-900">
-      <div class="max-w-4xl mx-auto">
-        <div class="relative">
-          <textarea id="user-input" rows="1" 
-            class="w-full bg-gray-800 text-white placeholder-gray-400 rounded-3xl px-6 py-4 pr-24 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 text-base"
-            placeholder="Message Claude..."></textarea>
-          <button onclick="sendMessage()" 
-            class="absolute right-4 bottom-4 bg-violet-600 hover:bg-violet-700 text-white w-9 h-9 rounded-2xl flex items-center justify-center transition-colors">
-            ↑
-          </button>
+        <div class="w-8 h-8 bg-gradient-to-br from-[#7c3aed] to-[#c4b5fd] rounded-2xl flex items-center justify-center text-white font-bold text-lg shadow-lg">C</div>
+        <div>
+          <h1 id="current-chat-title" class="font-semibold text-sm text-white">New Conversation</h1>
+          <p id="model-display" class="text-xs text-[#737373]">Claude Sonnet 4.6</p>
         </div>
-        <p class="text-center text-[10px] text-gray-500 mt-3">Claude can make mistakes. Consider checking important info.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="clearAllChats()" class="text-[#a3a3a3] hover:text-white text-sm px-3 py-1.5 rounded-lg hover:bg-[#262626] transition-colors flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+          <span class="hidden sm:inline">Clear All</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Messages Area -->
+    <div id="messages" class="flex-1 overflow-y-auto px-4 sm:px-8 lg:px-12 py-6 space-y-6 scroll-smooth"></div>
+
+    <!-- Scroll to Bottom Button -->
+    <button id="scroll-bottom" onclick="scrollToBottom()" class="hidden fixed bottom-32 right-8 bg-[#262626] hover:bg-[#404040] text-white p-2 rounded-full shadow-lg border border-[#404040] transition-all z-10">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+    </button>
+
+    <!-- Input Area -->
+    <div class="p-4 border-t border-[#262626] bg-[#0d0d0d]">
+      <div class="max-w-3xl mx-auto">
+        <!-- Attached Files Preview -->
+        <div id="attached-files" class="hidden mb-2 flex flex-wrap gap-2"></div>
+        
+        <div class="relative bg-[#262626] rounded-2xl border border-[#404040] focus-within:border-[#7c3aed] transition-colors shadow-lg">
+          <textarea id="user-input" rows="1" 
+            class="w-full bg-transparent text-[#e0e0e0] placeholder-[#737373] rounded-2xl px-5 py-4 pr-24 resize-none focus:outline-none text-base min-h-[56px] max-h-[200px]"
+            placeholder="Message Claude... (Ctrl+Enter to send)"></textarea>
+          
+          <div class="absolute right-3 bottom-3 flex items-center gap-2">
+            <!-- File Upload Button -->
+            <button onclick="triggerFileUpload()" class="text-[#a3a3a3] hover:text-white p-2 rounded-xl hover:bg-[#404040] transition-colors" title="Attach files (images, PDF, DOCX)">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"></path></svg>
+            </button>
+            
+            <!-- Send Button -->
+            <button onclick="sendMessage()" id="send-btn"
+              class="bg-[#7c3aed] hover:bg-[#8b5cf6] text-white w-9 h-9 rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"></path></svg>
+            </button>
+          </div>
+        </div>
+        
+        <p class="text-center text-[11px] text-[#525252] mt-2">
+          Claude can make mistakes. Images, PDFs, and documents are supported.
+        </p>
       </div>
     </div>
+  </main>
+
+  <!-- Loading Indicator -->
+  <div id="loading" class="hidden fixed bottom-28 right-8 bg-[#262626] text-white text-sm px-4 py-2.5 rounded-2xl flex items-center gap-3 shadow-2xl border border-[#404040] z-30">
+    <div class="flex gap-1">
+      <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce"></div>
+      <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+      <div class="w-2 h-2 bg-violet-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+    </div>
+    <span class="text-[#a3a3a3]">Thinking...</span>
   </div>
 
-  <!-- Loading indicator (hidden by default) -->
-  <div id="loading" class="hidden absolute bottom-32 right-12 bg-gray-800 text-white text-sm px-4 py-2 rounded-3xl flex items-center gap-2 shadow-xl">
-    <div class="w-2 h-2 bg-violet-400 animate-pulse rounded-full"></div>
-    Thinking...
+  <!-- Toast Notification -->
+  <div id="toast" class="fixed top-4 right-4 bg-[#262626] text-white px-4 py-3 rounded-xl shadow-2xl border border-[#404040] transform translate-x-full transition-transform duration-300 z-50 flex items-center gap-2">
+    <span id="toast-icon">✓</span>
+    <span id="toast-message">Notification</span>
   </div>
 </body>
 </html>
