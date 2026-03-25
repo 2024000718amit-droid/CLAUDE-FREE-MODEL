@@ -30,46 +30,96 @@ function showToast(message, icon = '✓', duration = 3000) {
   }, duration);
 }
 
-// File Upload - Simple and reliable
-async function uploadFile() {
+// Authenticate with Puter before using file features
+async function authenticatePuter() {
   try {
-    // Use string format for accept (more compatible with Puter)
+    await puter.auth.signIn();
+    console.log('✓ Puter authenticated');
+    return true;
+  } catch (err) {
+    console.error('Puter auth failed:', err);
+    showToast('Please sign into Puter.com first', '✗', 5000);
+    return false;
+  }
+}
+
+// File Upload - Fixed with proper authentication and File handling
+async function uploadFile() {
+  // Ensure user is authenticated first
+  const isAuth = await authenticatePuter();
+  if (!isAuth) return;
+
+  try {
+    showToast('Opening file picker...', '📂');
+    
+    // Open file picker - Puter returns raw File objects
     const result = await puter.ui.showOpenFilePicker({
       multiple: true,
       accept: 'image/*,.pdf,.docx,.doc,.txt'
     });
 
-    // Ensure we have an array (Puter might return single file or array)
-    const files = Array.isArray(result) ? result : [result];
+    // Handle both single file and array returns
+    const files = Array.isArray(result) ? result : (result ? [result] : []);
+    
+    if (files.length === 0) {
+      console.log('No files selected');
+      return;
+    }
 
+    // Upload each file to Puter's filesystem
     for (const file of files) {
       try {
-        const uploaded = await puter.fs.upload(file);
+        showToast(`Uploading ${file.name}...`, '⬆️', 2000);
+        
+        // Upload the raw File object - this gives us a path/URL in Puter
+        const uploadResult = await puter.fs.upload(file);
+        
+        // Store file info with the path from Puter
         const fileInfo = {
           name: file.name,
-          url: uploaded.url || uploaded.path,
-          type: file.type
+          path: uploadResult.path || uploadResult.url,  // Path in Puter FS
+          url: uploadResult.url || uploadResult.path,
+          type: file.type || getFileType(file.name),
+          size: file.size
         };
+        
         attachedFiles.push(fileInfo);
-        console.log(`Attached: ${file.name}`);
+        console.log(`✓ Attached: ${file.name} -> ${fileInfo.path}`);
+        showToast(`${file.name} uploaded`, '✓', 2000);
+        
       } catch (uploadErr) {
-        console.error("Upload failed for", file.name, uploadErr);
+        console.error(`Upload failed for ${file.name}:`, uploadErr);
         showToast(`Failed to upload ${file.name}`, '✗');
       }
     }
 
+    // Render attached files preview
+    renderAttachedFiles();
+    
     if (attachedFiles.length > 0) {
-      showToast(`✅ Successfully attached ${attachedFiles.length} file(s)`, '✓');
-      renderAttachedFiles();
+      showToast(`✅ ${attachedFiles.length} file(s) ready to send`, '✓');
     }
+    
   } catch (e) {
     if (e.message && e.message.includes("cancel")) {
       console.log("File picker cancelled by user");
     } else {
       console.error("File picker error:", e);
-      showToast("File picker error. You may need to sign into Puter.com first.", '✗', 5000);
+      showToast("File picker error: " + (e.message || "Unknown error"), '✗', 5000);
     }
   }
+}
+
+// Helper to determine file type from extension
+function getFileType(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  const types = {
+    'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+    'gif': 'image/gif', 'webp': 'image/webp', 'pdf': 'application/pdf',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'doc': 'application/msword', 'txt': 'text/plain'
+  };
+  return types[ext] || 'application/octet-stream';
 }
 
 // Render attached files preview
@@ -256,7 +306,7 @@ async function regenerateMessage() {
   }
 }
 
-// Send message with file support
+// Send message with file support - Fixed to properly pass files to Claude
 async function sendMessage() {
   const text = userInput.value.trim();
   if (!text && attachedFiles.length === 0) return;
@@ -268,62 +318,13 @@ async function sendMessage() {
   // Disable send button
   sendBtn.disabled = true;
   
-  // Build message content with file context
-  let fullContent = text;
-  let fileContext = '';
+  // Collect file paths for Claude
+  const filePaths = attachedFiles.map(f => f.path || f.url).filter(Boolean);
   
-  // Read and include file content for documents
-  const documentFiles = attachedFiles.filter(f => {
-    const type = f.type || '';
-    const name = f.name || '';
-    return type.includes('pdf') || name.endsWith('.pdf') || 
-           name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
-  });
-  
-  if (documentFiles.length > 0) {
-    fileContext += '\n\n[Attached Documents Content]\n';
-    fileContext += '===========================\n\n';
-    
-    for (const file of documentFiles) {
-      try {
-        let content = '';
-        
-        // Handle DOCX files specially with mammoth
-        if (file.name.toLowerCase().endsWith('.docx') && typeof mammoth !== 'undefined') {
-          // Read as ArrayBuffer for DOCX
-          const arrayBuffer = await puter.fs.read(file.url, { encoding: 'arraybuffer' });
-          const result = await mammoth.extractRawText({ arrayBuffer });
-          content = result.value;
-          if (result.messages.length > 0) {
-            console.log('Mammoth messages:', result.messages);
-          }
-        } else {
-          // Read as text for other documents (PDF, TXT)
-          content = await puter.fs.read(file.url);
-        }
-        
-        fileContext += `--- ${file.name} ---\n`;
-        fileContext += `${content}\n\n`;
-      } catch (err) {
-        console.error(`Failed to read ${file.name}:`, err);
-        fileContext += `--- ${file.name} ---\n`;
-        fileContext += `[Error: Could not read file content - ${err.message}]\n\n`;
-      }
-    }
-  }
-  
-  // Add image references (Claude can see these via vision)
-  const imageFiles = attachedFiles.filter(f => f.type && f.type.startsWith('image/'));
-  if (imageFiles.length > 0) {
-    fileContext += `\n\n[Attached: ${imageFiles.length} image(s) for visual analysis]\n`;
-  }
-  
-  fullContent += fileContext;
-
-  // Add user message
+  // Add user message to UI
   const userMsg = { 
     role: 'user', 
-    content: text || '[File attachment]',
+    content: text || (attachedFiles.length > 0 ? '[File attachment]' : ''),
     files: [...attachedFiles],
     id: Date.now().toString()
   };
@@ -333,7 +334,7 @@ async function sendMessage() {
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   userInput.value = '';
   
-  // Clear attached files
+  // Clear attached files from UI
   attachedFiles = [];
   renderAttachedFiles();
 
@@ -349,30 +350,26 @@ async function sendMessage() {
   scrollToBottom();
 
   try {
-    // Prepare message for AI with file references
-    let aiPrompt = fullContent;
+    // Prepare AI call with files
+    const aiText = text || 'Please analyze the attached file(s).';
     
-    // If we have images, we need to handle them specially for vision models
-    const images = userMsg.files.filter(f => f.type && f.type.startsWith('image/'));
-    const documents = userMsg.files.filter(f => {
-      const type = f.type || '';
-      const name = f.name || '';
-      return type.includes('pdf') || name.endsWith('.pdf') || 
-             name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
-    });
-    
-    // Build the options for puter.ai.chat
+    // Build chat options
     const chatOptions = {
       model: currentModel,
       stream: true
     };
-    
-    // Add images if present
-    if (images.length > 0 && images[0].url) {
-      chatOptions.image = images[0].url; // Puter supports image URLs/data URLs
-    }
 
-    const resp = await puter.ai.chat(aiPrompt, chatOptions);
+    let resp;
+    
+    // Call Claude with or without files
+    if (filePaths.length > 0) {
+      // Pass files as second parameter - this is the correct format for Puter
+      console.log('Sending to Claude:', { text: aiText, filePaths, model: currentModel });
+      resp = await puter.ai.chat(aiText, filePaths, chatOptions);
+    } else {
+      // No files - just text
+      resp = await puter.ai.chat(aiText, chatOptions);
+    }
 
     // Create streaming response element
     const msgId = 'msg-' + Date.now();
@@ -407,12 +404,12 @@ async function sendMessage() {
     
   } catch (err) {
     console.error('Chat error:', err);
-    showToast('Error connecting to Claude. Please sign into Puter.', '✗', 5000);
+    showToast('Error: ' + (err.message || 'Failed to send message'), '✗', 5000);
     
     // Add error message
     const errorMsg = {
       role: 'assistant',
-      content: 'Sorry, I encountered an error. Please make sure you are signed into Puter and try again.',
+      content: 'Sorry, I encountered an error: ' + (err.message || 'Please try again.'),
       id: Date.now().toString()
     };
     chat.messages.push(errorMsg);
