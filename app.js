@@ -30,68 +30,40 @@ function showToast(message, icon = '✓', duration = 3000) {
   }, duration);
 }
 
-// File Upload - Trigger file picker
-async function triggerFileUpload() {
+// File Upload - Simple and reliable
+async function uploadFile() {
   try {
-    // Use Puter's file picker
+    // Simpler and more reliable way
     const files = await puter.ui.showOpenFilePicker({
-      multiple: true,
-      accept: 'image/*,.pdf,.doc,.docx'
+      multiple: true,                    // allow multiple files
+      accept: ['image/*', '.pdf', '.docx', '.doc', '.txt']
     });
-    
-    if (!files || files.length === 0) return;
-    
+
     for (const file of files) {
-      await uploadFile(file);
+      try {
+        const uploaded = await puter.fs.upload(file);
+        const fileInfo = {
+          name: file.name,
+          url: uploaded.url || uploaded.path,
+          type: file.type
+        };
+        attachedFiles.push(fileInfo);
+        console.log(`Attached: ${file.name}`);
+      } catch (uploadErr) {
+        console.error("Upload failed for", file.name, uploadErr);
+      }
     }
-  } catch (err) {
-    console.error('File picker error:', err);
-    showToast('Failed to open file picker', '✗');
-  }
-}
 
-// Upload file to Puter and attach
-async function uploadFile(file) {
-  try {
-    showToast(`Uploading ${file.name}...`, '⬆️', 2000);
-    
-    // Upload to Puter's temporary storage
-    const uploadedPath = await puter.fs.upload(file);
-    
-    // Create file attachment object
-    const fileAttachment = {
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      path: uploadedPath,
-      isImage: file.type.startsWith('image/'),
-      isDocument: file.type.includes('pdf') || file.name.endsWith('.pdf') || 
-                  file.name.endsWith('.doc') || file.name.endsWith('.docx')
-    };
-    
-    // If image, get data URL for preview
-    if (fileAttachment.isImage) {
-      fileAttachment.preview = await fileToDataURL(file);
+    if (attachedFiles.length > 0) {
+      showToast(`✅ Successfully attached ${attachedFiles.length} file(s)`, '✓');
     }
-    
-    attachedFiles.push(fileAttachment);
-    renderAttachedFiles();
-    showToast(`${file.name} attached`, '✓');
-    
-  } catch (err) {
-    console.error('Upload error:', err);
-    showToast(`Failed to upload ${file.name}`, '✗');
+  } catch (e) {
+    if (e.message && e.message.includes("cancel")) {
+      console.log("File picker cancelled by user");
+    } else {
+      showToast("File upload failed. Try signing into Puter.com first or use the public version at https://claude.puter.com", '✗', 5000);
+    }
   }
-}
-
-// Convert file to data URL
-function fileToDataURL(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 }
 
 // Render attached files preview
@@ -103,10 +75,11 @@ function renderAttachedFiles() {
   
   attachedFilesDiv.classList.remove('hidden');
   attachedFilesDiv.innerHTML = attachedFiles.map((file, index) => {
-    if (file.isImage && file.preview) {
+    const isImage = file.type && file.type.startsWith('image/');
+    if (isImage) {
       return `
         <div class="relative group">
-          <img src="${file.preview}" alt="${file.name}" class="file-thumbnail">
+          <img src="${file.url}" alt="${file.name}" class="file-thumbnail">
           <button onclick="removeAttachedFile(${index})" class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>
         </div>
       `;
@@ -224,8 +197,9 @@ function createMessageHTML(msg, isStreaming = false) {
 // Render files attached to a message
 function renderMessageFiles(files) {
   return files.map(file => {
-    if (file.isImage && file.preview) {
-      return `<div class="mb-2"><img src="${file.preview}" alt="${file.name}" class="max-h-48 rounded-lg border border-[#404040]"></div>`;
+    const isImage = file.type && file.type.startsWith('image/');
+    if (isImage) {
+      return `<div class="mb-2"><img src="${file.url}" alt="${file.name}" class="max-h-48 rounded-lg border border-[#404040]"></div>`;
     } else {
       return `
         <div class="file-attachment mb-2">
@@ -293,14 +267,24 @@ async function sendMessage() {
   let fileContext = '';
   
   if (attachedFiles.length > 0) {
-    const imageCount = attachedFiles.filter(f => f.isImage).length;
-    const docCount = attachedFiles.filter(f => f.isDocument).length;
+    const imageCount = attachedFiles.filter(f => f.type && f.type.startsWith('image/')).length;
+    const docCount = attachedFiles.filter(f => {
+      const type = f.type || '';
+      const name = f.name || '';
+      return type.includes('pdf') || name.endsWith('.pdf') || 
+             name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
+    }).length;
     
     if (imageCount > 0) {
       fileContext += `\n\n[Attached: ${imageCount} image${imageCount > 1 ? 's' : ''}]`;
     }
     if (docCount > 0) {
-      const docNames = attachedFiles.filter(f => f.isDocument).map(f => f.name).join(', ');
+      const docNames = attachedFiles.filter(f => {
+        const type = f.type || '';
+        const name = f.name || '';
+        return type.includes('pdf') || name.endsWith('.pdf') || 
+               name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
+      }).map(f => f.name).join(', ');
       fileContext += `\n\n[Attached documents: ${docNames}]`;
     }
   }
@@ -340,8 +324,13 @@ async function sendMessage() {
     let aiPrompt = fullContent;
     
     // If we have images, we need to handle them specially for vision models
-    const images = userMsg.files.filter(f => f.isImage);
-    const documents = userMsg.files.filter(f => f.isDocument);
+    const images = userMsg.files.filter(f => f.type && f.type.startsWith('image/'));
+    const documents = userMsg.files.filter(f => {
+      const type = f.type || '';
+      const name = f.name || '';
+      return type.includes('pdf') || name.endsWith('.pdf') || 
+             name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
+    });
     
     // Build the options for puter.ai.chat
     const chatOptions = {
@@ -350,8 +339,8 @@ async function sendMessage() {
     };
     
     // Add images if present
-    if (images.length > 0 && images[0].preview) {
-      chatOptions.image = images[0].preview; // Puter supports image URLs/data URLs
+    if (images.length > 0 && images[0].url) {
+      chatOptions.image = images[0].url; // Puter supports image URLs/data URLs
     }
 
     const resp = await puter.ai.chat(aiPrompt, chatOptions);
@@ -508,8 +497,21 @@ userInput.addEventListener('paste', async (e) => {
     if (item.type.startsWith('image/')) {
       const file = item.getAsFile();
       if (file) {
-        await uploadFile(file);
-        showToast('Image pasted from clipboard', '📋');
+        // Upload the pasted file directly
+        try {
+          const uploaded = await puter.fs.upload(file);
+          const fileInfo = {
+            name: file.name || 'pasted-image.png',
+            url: uploaded.url || uploaded.path,
+            type: file.type
+          };
+          attachedFiles.push(fileInfo);
+          renderAttachedFiles();
+          showToast('Image pasted from clipboard', '📋');
+        } catch (err) {
+          console.error('Paste upload error:', err);
+          showToast('Failed to paste image', '✗');
+        }
       }
     }
   }
