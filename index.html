@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude • Unlimited</title>
+  <script src="https://js.puter.com/v2/"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body class="bg-gray-950 text-gray-100 flex h-screen overflow-hidden font-sans">
+  <!-- Sidebar -->
+  <div id="sidebar" class="w-72 bg-gray-900 border-r border-gray-800 flex flex-col">
+    <div class="p-4 border-b border-gray-800">
+      <button onclick="newChat()" class="w-full bg-violet-600 hover:bg-violet-700 text-white rounded-xl py-3 px-4 flex items-center justify-center gap-2 font-medium transition-colors">
+        <span class="text-xl">+</span> New Chat
+      </button>
+    </div>
+    <div id="chat-list" class="flex-1 overflow-y-auto p-2 space-y-1"></div>
+    <div class="p-4 border-t border-gray-800 text-xs text-gray-500 flex items-center justify-between">
+      <div>Powered by Puter.js • Free & Unlimited</div>
+      <select id="model-select" onchange="switchModel()" class="bg-gray-800 text-white text-sm rounded-lg px-3 py-1 border border-gray-700">
+        <option value="claude-opus-4-6">Claude Opus 4.6</option>
+        <option value="claude-sonnet-4-6" selected>Claude Sonnet 4.6</option>
+        <option value="claude-haiku-4-5">Claude Haiku 4.5</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Main Chat -->
+  <div class="flex-1 flex flex-col">
+    <div id="chat-header" class="h-14 border-b border-gray-800 flex items-center px-6 justify-between bg-gray-900">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 bg-violet-600 rounded-2xl flex items-center justify-center text-white font-bold">C</div>
+        <h1 id="current-chat-title" class="font-semibold text-lg">New Conversation</h1>
+      </div>
+      <button onclick="clearAllChats()" class="text-gray-400 hover:text-white text-sm flex items-center gap-1">
+        <span>Clear All</span>
+      </button>
+    </div>
+
+    <div id="messages" class="flex-1 overflow-y-auto p-6 space-y-8 bg-gray-950"></div>
+
+    <!-- Input -->
+    <div class="p-4 border-t border-gray-800 bg-gray-900">
+      <div class="max-w-4xl mx-auto">
+        <div class="relative">
+          <textarea id="user-input" rows="1" 
+            class="w-full bg-gray-800 text-white placeholder-gray-400 rounded-3xl px-6 py-4 pr-24 resize-none focus:outline-none focus:ring-2 focus:ring-violet-500 text-base"
+            placeholder="Message Claude..."></textarea>
+          <button onclick="sendMessage()" 
+            class="absolute right-4 bottom-4 bg-violet-600 hover:bg-violet-700 text-white w-9 h-9 rounded-2xl flex items-center justify-center transition-colors">
+            ↑
+          </button>
+        </div>
+        <p class="text-center text-[10px] text-gray-500 mt-3">Claude can make mistakes. Consider checking important info.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading indicator (hidden by default) -->
+  <div id="loading" class="hidden absolute bottom-32 right-12 bg-gray-800 text-white text-sm px-4 py-2 rounded-3xl flex items-center gap-2 shadow-xl">
+    <div class="w-2 h-2 bg-violet-400 animate-pulse rounded-full"></div>
+    Thinking...
+  </div>
+</body>
+</html>
