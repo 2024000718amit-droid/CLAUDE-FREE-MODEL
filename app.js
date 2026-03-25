@@ -30,15 +30,38 @@ function showToast(message, icon = '✓', duration = 3000) {
   }, duration);
 }
 
+// Check if Puter is loaded and ready
+async function waitForPuter(maxWait = 10000) {
+  const start = Date.now();
+  while (typeof puter === 'undefined' || !puter.auth) {
+    if (Date.now() - start > maxWait) {
+      throw new Error('Puter.js failed to load - check console for errors');
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return true;
+}
+
 // Authenticate with Puter before using file features
 async function authenticatePuter() {
   try {
+    // Wait for Puter to be available
+    await waitForPuter();
+    
+    // Check if already signed in
+    const user = await puter.auth.getUser();
+    if (user) {
+      console.log('✓ Already authenticated as:', user.username);
+      return true;
+    }
+    
+    // Sign in
     await puter.auth.signIn();
     console.log('✓ Puter authenticated');
     return true;
   } catch (err) {
     console.error('Puter auth failed:', err);
-    showToast('Please sign into Puter.com first', '✗', 5000);
+    showToast('Puter not available. Check HTTPS/certificate or try https://puter.com', '✗', 8000);
     return false;
   }
 }
