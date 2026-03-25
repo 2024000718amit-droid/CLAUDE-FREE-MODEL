@@ -94,8 +94,8 @@ async function uploadFile() {
       try {
         showToast(`Uploading ${file.name}...`, '⬆️', 2000);
         
-        // Upload the raw File object - this gives us a path/URL in Puter
-        const uploadResult = await puter.fs.upload(file);
+        // Upload the raw File object - MUST be array
+        const uploadResult = await puter.fs.upload([file]);
         
         // Store file info with the path from Puter
         const fileInfo = {
@@ -548,7 +548,7 @@ userInput.addEventListener('paste', async (e) => {
       if (file) {
         // Upload the pasted file directly
         try {
-          const uploaded = await puter.fs.upload(file);
+          const uploaded = await puter.fs.upload([file]);
           const fileInfo = {
             name: file.name || 'pasted-image.png',
             url: uploaded.url || uploaded.path,
