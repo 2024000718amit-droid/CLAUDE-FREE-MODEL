@@ -266,27 +266,36 @@ async function sendMessage() {
   let fullContent = text;
   let fileContext = '';
   
-  if (attachedFiles.length > 0) {
-    const imageCount = attachedFiles.filter(f => f.type && f.type.startsWith('image/')).length;
-    const docCount = attachedFiles.filter(f => {
-      const type = f.type || '';
-      const name = f.name || '';
-      return type.includes('pdf') || name.endsWith('.pdf') || 
-             name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
-    }).length;
+  // Read and include file content for documents
+  const documentFiles = attachedFiles.filter(f => {
+    const type = f.type || '';
+    const name = f.name || '';
+    return type.includes('pdf') || name.endsWith('.pdf') || 
+           name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
+  });
+  
+  if (documentFiles.length > 0) {
+    fileContext += '\n\n[Attached Documents Content]\n';
+    fileContext += '===========================\n\n';
     
-    if (imageCount > 0) {
-      fileContext += `\n\n[Attached: ${imageCount} image${imageCount > 1 ? 's' : ''}]`;
+    for (const file of documentFiles) {
+      try {
+        // Read file content from Puter
+        const content = await puter.fs.read(file.url);
+        fileContext += `--- ${file.name} ---\n`;
+        fileContext += `${content}\n\n`;
+      } catch (err) {
+        console.error(`Failed to read ${file.name}:`, err);
+        fileContext += `--- ${file.name} ---\n`;
+        fileContext += `[Error: Could not read file content]\n\n`;
+      }
     }
-    if (docCount > 0) {
-      const docNames = attachedFiles.filter(f => {
-        const type = f.type || '';
-        const name = f.name || '';
-        return type.includes('pdf') || name.endsWith('.pdf') || 
-               name.endsWith('.doc') || name.endsWith('.docx') || name.endsWith('.txt');
-      }).map(f => f.name).join(', ');
-      fileContext += `\n\n[Attached documents: ${docNames}]`;
-    }
+  }
+  
+  // Add image references (Claude can see these via vision)
+  const imageFiles = attachedFiles.filter(f => f.type && f.type.startsWith('image/'));
+  if (imageFiles.length > 0) {
+    fileContext += `\n\n[Attached: ${imageFiles.length} image(s) for visual analysis]\n`;
   }
   
   fullContent += fileContext;
