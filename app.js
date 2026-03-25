@@ -58,83 +58,19 @@ function showToast(message, icon = '✓', duration = 3000) {
   }, duration);
 }
 
-// File Upload - Fixed with proper null checks and authentication
 async function uploadFile() {
+  const file = document.getElementById("fileInput").files[0];
+
+  if (!file) {
+    alert("No file selected");
+    return;
+  }
+
   try {
-    // Wait for Puter to be ready
-    await waitForPuter();
-    
-    // Check if already authenticated
-    let isAuthenticated = false;
-    try {
-      await puter.auth.getUser();
-      isAuthenticated = true;
-    } catch {
-      // Not authenticated, sign in
-      await puter.auth.signIn();
-      isAuthenticated = true;
-    }
-    
-    if (!isAuthenticated) {
-      showToast('Authentication failed', '✗');
-      return;
-    }
-
-    // Open file picker with proper error handling
-    const result = await puter.ui.showOpenFilePicker({
-      multiple: true,
-      accept: 'image/*,.pdf,.docx,.doc,.txt'
-    });
-
-    // Handle both single file and array returns
-    const files = Array.isArray(result) ? result : (result ? [result] : []);
-    
-    if (files.length === 0) {
-      console.log('No files selected');
-      return;
-    }
-
-    // Upload each file
-    for (const file of files) {
-      try {
-        showToast(`Uploading ${file.name}...`, '⬆️', 2000);
-        
-        // Upload using puter.upload (not puter.fs.upload)
-        const uploadResult = await puter.upload([file]);
-        
-        // Store file info
-        const fileInfo = {
-          name: file.name,
-          path: uploadResult.path || uploadResult.url,
-          url: uploadResult.url || uploadResult.path,
-          type: file.type || getFileType(file.name),
-          size: file.size
-        };
-        
-        attachedFiles.push(fileInfo);
-        console.log(`✓ Attached: ${file.name}`);
-        showToast(`${file.name} uploaded`, '✓', 2000);
-        
-      } catch (uploadErr) {
-        console.error(`Upload failed for ${file.name}:`, uploadErr);
-        showToast(`Failed to upload ${file.name}`, '✗');
-      }
-    }
-
-    // Update UI
-    renderAttachedFiles();
-    
-    if (attachedFiles.length > 0) {
-      showToast(`✅ ${attachedFiles.length} file(s) ready`, '✓');
-    }
-    
-  } catch (e) {
-    if (e.message && e.message.includes("cancel")) {
-      console.log("File picker cancelled");
-    } else {
-      console.error("Upload error:", e);
-      showToast("Upload error: " + (e.message || "Unknown error"), '✗', 5000);
-    }
+    const result = await puter.fs.upload([file]);
+    console.log("Upload success:", result);
+  } catch (err) {
+    console.error("Upload failed:", err);
   }
 }
 
@@ -553,7 +489,7 @@ userInput.addEventListener('paste', async (e) => {
       if (file) {
         // Upload the pasted file directly
         try {
-          const uploaded = await puter.upload([file]);
+          const uploaded = await puter.fs.upload([file]);
           const fileInfo = {
             name: file.name || 'pasted-image.png',
             url: uploaded.url || uploaded.path,
