@@ -15,6 +15,34 @@ const attachedFilesDiv = document.getElementById('attached-files');
 const loadingDiv = document.getElementById('loading');
 const sendBtn = document.getElementById('send-btn');
 
+// Wait for Puter to be loaded and ready
+async function waitForPuter(maxWait = 10000) {
+  const start = Date.now();
+  while (typeof puter === 'undefined' || !puter.auth) {
+    if (Date.now() - start > maxWait) {
+      throw new Error('Puter.js failed to load - refresh the page');
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  return true;
+}
+
+// Initialize Puter when window loads
+window.addEventListener("load", async () => {
+  try {
+    await waitForPuter();
+    try {
+      await puter.auth.getUser();
+      console.log('✓ Puter authenticated');
+    } catch {
+      await puter.auth.signIn();
+      console.log('✓ Puter signed in');
+    }
+  } catch (err) {
+    console.error('Puter initialization failed:', err);
+  }
+});
+
 // Toast notification
 function showToast(message, icon = '✓', duration = 3000) {
   const toast = document.getElementById('toast');
@@ -30,52 +58,29 @@ function showToast(message, icon = '✓', duration = 3000) {
   }, duration);
 }
 
-// Check if Puter is loaded and ready
-async function waitForPuter(maxWait = 10000) {
-  const start = Date.now();
-  while (typeof puter === 'undefined' || !puter.auth) {
-    if (Date.now() - start > maxWait) {
-      throw new Error('Puter.js failed to load - check console for errors');
-    }
-    await new Promise(r => setTimeout(r, 100));
-  }
-  return true;
-}
-
-// Authenticate with Puter before using file features
-async function authenticatePuter() {
+// File Upload - Fixed with proper null checks and authentication
+async function uploadFile() {
   try {
-    // Wait for Puter to be available
+    // Wait for Puter to be ready
     await waitForPuter();
     
-    // Check if already signed in
-    const user = await puter.auth.getUser();
-    if (user) {
-      console.log('✓ Already authenticated as:', user.username);
-      return true;
+    // Check if already authenticated
+    let isAuthenticated = false;
+    try {
+      await puter.auth.getUser();
+      isAuthenticated = true;
+    } catch {
+      // Not authenticated, sign in
+      await puter.auth.signIn();
+      isAuthenticated = true;
     }
     
-    // Sign in
-    await puter.auth.signIn();
-    console.log('✓ Puter authenticated');
-    return true;
-  } catch (err) {
-    console.error('Puter auth failed:', err);
-    showToast('Puter not available. Check HTTPS/certificate or try https://puter.com', '✗', 8000);
-    return false;
-  }
-}
+    if (!isAuthenticated) {
+      showToast('Authentication failed', '✗');
+      return;
+    }
 
-// File Upload - Fixed with proper authentication and File handling
-async function uploadFile() {
-  // Ensure user is authenticated first
-  const isAuth = await authenticatePuter();
-  if (!isAuth) return;
-
-  try {
-    showToast('Opening file picker...', '📂');
-    
-    // Open file picker - Puter returns raw File objects
+    // Open file picker with proper error handling
     const result = await puter.ui.showOpenFilePicker({
       multiple: true,
       accept: 'image/*,.pdf,.docx,.doc,.txt'
@@ -89,25 +94,25 @@ async function uploadFile() {
       return;
     }
 
-    // Upload each file to Puter's filesystem
+    // Upload each file
     for (const file of files) {
       try {
         showToast(`Uploading ${file.name}...`, '⬆️', 2000);
         
-        // Upload the raw File object - MUST be array
-        const uploadResult = await puter.fs.upload([file]);
+        // Upload using puter.upload (not puter.fs.upload)
+        const uploadResult = await puter.upload([file]);
         
-        // Store file info with the path from Puter
+        // Store file info
         const fileInfo = {
           name: file.name,
-          path: uploadResult.path || uploadResult.url,  // Path in Puter FS
+          path: uploadResult.path || uploadResult.url,
           url: uploadResult.url || uploadResult.path,
           type: file.type || getFileType(file.name),
           size: file.size
         };
         
         attachedFiles.push(fileInfo);
-        console.log(`✓ Attached: ${file.name} -> ${fileInfo.path}`);
+        console.log(`✓ Attached: ${file.name}`);
         showToast(`${file.name} uploaded`, '✓', 2000);
         
       } catch (uploadErr) {
@@ -116,19 +121,19 @@ async function uploadFile() {
       }
     }
 
-    // Render attached files preview
+    // Update UI
     renderAttachedFiles();
     
     if (attachedFiles.length > 0) {
-      showToast(`✅ ${attachedFiles.length} file(s) ready to send`, '✓');
+      showToast(`✅ ${attachedFiles.length} file(s) ready`, '✓');
     }
     
   } catch (e) {
     if (e.message && e.message.includes("cancel")) {
-      console.log("File picker cancelled by user");
+      console.log("File picker cancelled");
     } else {
-      console.error("File picker error:", e);
-      showToast("File picker error: " + (e.message || "Unknown error"), '✗', 5000);
+      console.error("Upload error:", e);
+      showToast("Upload error: " + (e.message || "Unknown error"), '✗', 5000);
     }
   }
 }
@@ -548,7 +553,7 @@ userInput.addEventListener('paste', async (e) => {
       if (file) {
         // Upload the pasted file directly
         try {
-          const uploaded = await puter.fs.upload([file]);
+          const uploaded = await puter.upload([file]);
           const fileInfo = {
             name: file.name || 'pasted-image.png',
             url: uploaded.url || uploaded.path,
